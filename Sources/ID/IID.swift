@@ -1,11 +1,11 @@
 import Foundation
 
 public struct IID: ID, CustomStringConvertible {
-    public static var seeds = [String:Int]()
-    public let hashValue: Int
+    public static var seeds = [String:UInt]()
+    public let value: UInt
     public let description: String
 
-    static let queue = DispatchQueue(label: "nl.devign.id")
+    static let queue = DispatchQueue(label: "nl.devign.iid")
 
     public init() {
         self.init(for: "")
@@ -13,14 +13,14 @@ public struct IID: ID, CustomStringConvertible {
 
     public init(for name: String) {
         IID.queue.sync {
-            IID.seeds[name] = (IID.seeds[name] ?? 0) + 1
+            IID.seeds[name, default: 0] += 1
         }
         
-        self.init(IID.seeds[name] ?? 0)
+        self.init(IID.seeds[name, default: 0])
     }
 
-    public init(_ id: Int) {
-        hashValue = id
+    public init(_ id: UInt) {
+        value = id
         description = "\(id)"
     }
 }

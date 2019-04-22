@@ -3,33 +3,36 @@ import Foundation
 public struct TID: ID, CustomStringConvertible {
     // This date is the 5th of November 2016
     public static var referenceDate = Date(timeIntervalSinceReferenceDate: 5e8)
-    static let chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$"
-                        .characters.map{"\($0)"}
+    static let chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$".map{"\($0)"}
 
     // this enables us to make 16 unique
     // instances of this struct every microsecond
-    public static var maxUniqifier = 16
-    static var uniqifier = maxUniqifier - 1
+    public static var maxUniqifier: UInt = 16
+    static var uniqifier: UInt = maxUniqifier - 1
     
-    static var nextUniq: Int {
-        uniqifier = (uniqifier + 1) % maxUniqifier
+    static let queue = DispatchQueue(label: "nl.devign.tid")
+    
+    static var nextUniq: UInt {
+        IID.queue.sync {
+            uniqifier = (uniqifier + 1) % maxUniqifier
+        }
         
         return uniqifier
     }
     
-    public let hashValue: Int
+    public let value: UInt
     public let description: String
 
     public init() {
         let timeInterval = Date().timeIntervalSince(TID.referenceDate)
-        self = TID(Int(timeInterval * 1e6) * TID.maxUniqifier + TID.nextUniq)
+        self = TID(UInt(timeInterval * 1e6) * TID.maxUniqifier + TID.nextUniq)
     }
     
-    public init(_ id: Int) {
-        hashValue = id
+    public init(_ id: UInt) {
+        value = id
         
-        let bits = String(hashValue, radix: 2)
-        let c = bits.characters.count
+        let bits = String(value, radix: 2)
+        let c = bits.count
         
         let base64Chars = bits
             .padLeft(toLength: (c - 1) + (6 - (c - 1) % 6), withPad: "0")
@@ -46,12 +49,12 @@ public struct TID: ID, CustomStringConvertible {
     
     public init?(_ string: String) {
         let indices = string.replacingOccurrences(of: "-", with: "")
-            .characters.map { TID.chars.index(of: "\($0)") ?? -1 }
+            .map { TID.chars.index(of: "\($0)") ?? -1 }
         
         guard !indices.contains(-1) else { return nil }
         
-        hashValue = indices.reversed().enumerated()
-            .reduce(0) { $0 + $1.element * 64 ^ $1.offset }
+        value = indices.reversed().enumerated()
+            .reduce(0) { $0 + UInt($1.element) * UInt(64 ^ $1.offset) }
         
         description = string
     }
@@ -59,7 +62,7 @@ public struct TID: ID, CustomStringConvertible {
 
 extension TID: Comparable {
     public static func <(left: TID, right: TID) -> Bool {
-        return left.hashValue < right.hashValue
+        return left.value < right.value
     }
 }
 
@@ -79,13 +82,13 @@ extension TID: ExpressibleByStringLiteral {
 
 extension String {
     func padLeft(toLength length: Int, withPad pad: String) -> String {
-        let toPad = length - self.characters.count
+        let toPad = length - self.count
         if toPad < 1 { return self }
         return String(repeating: pad, count: toPad) + self
     }
     
     func split(every length: Int) -> [String] {
-        return Array(self.characters)
+        return Array(self)
             .chunk(per: length)
             .map{ $0.reduce("") { "\($0)\($1)" } }
     }
@@ -98,10 +101,4 @@ extension Array {
             return Array(self[chunkStart..<endIndex])
         }.reversed()
     }
-}
-
-precedencegroup PowerPrecedence { higherThan: MultiplicationPrecedence }
-infix operator ^ : PowerPrecedence
-func ^ (radix: Int, power: Int) -> Int {
-    return Int(pow(Double(radix), Double(power)))
 }
